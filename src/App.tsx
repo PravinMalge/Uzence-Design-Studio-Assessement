@@ -136,9 +136,9 @@ const InputField: React.FC<InputFieldProps> = ({
 interface Column<T> {
   key: string;
   title: string;
-  dataIndex: keyof T;
+  dataIndex: keyof T | (string & {}); // Allow string literals for dataIndex
   sortable?: boolean;
-  render?: (value: any, record: T) => React.ReactNode;
+  render?: (value: T[keyof T], record: T) => React.ReactNode;
 }
 
 interface DataTableProps<T> {
@@ -146,17 +146,17 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   loading?: boolean;
   selectable?: boolean;
-  onRowSelect?: (selectedRows: T[]) => void;
+  onRowSelect?: (selectedRows: T[]) => void; // Fix: Specify T[] instead of any[]
   keyExtractor?: (record: T) => string | number;
 }
 
-function DataTable<T extends Record<string, any>>({
+function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   loading = false,
   selectable = false,
   onRowSelect,
-  keyExtractor = (record, index) => index,
+  keyExtractor = (record: T) => record.id as string | number,
 }: DataTableProps<T>) {
   const [selectedRows, setSelectedRows] = useState<Set<string | number>>(new Set());
   const [sortConfig, setSortConfig] = useState<{
@@ -168,8 +168,8 @@ function DataTable<T extends Record<string, any>>({
     if (!sortConfig) return data;
 
     return [...data].sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
+      const aValue = a[sortConfig.key] as string | number;
+      const bValue = b[sortConfig.key] as string | number;
 
       if (aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
@@ -202,8 +202,7 @@ function DataTable<T extends Record<string, any>>({
     setSelectedRows(newSelectedRows);
     
     if (onRowSelect) {
-      const selectedData = data.filter((_, index) => 
-        newSelectedRows.has(keyExtractor(data[index], index))
+      const selectedData = data.filter((record) => newSelectedRows.has(keyExtractor(record))
       );
       onRowSelect(selectedData);
     }
@@ -211,7 +210,7 @@ function DataTable<T extends Record<string, any>>({
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allKeys = new Set(data.map((record, index) => keyExtractor(record, index)));
+      const allKeys = new Set(data.map((record) => keyExtractor(record)));
       setSelectedRows(allKeys);
       onRowSelect?.(data);
     } else {
@@ -295,8 +294,8 @@ function DataTable<T extends Record<string, any>>({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedData.map((record, index) => {
-              const rowKey = keyExtractor(record, index);
-              const isSelected = selectedRows.has(rowKey);
+              const rowKey = keyExtractor(record);
+              const isSelected = selectedRows.has(keyExtractor(record));
               
               return (
                 <tr
@@ -336,7 +335,7 @@ function DataTable<T extends Record<string, any>>({
 export default function ComponentDemo() {
   const [inputValue, setInputValue] = useState('');
   const [passwordValue, setPasswordValue] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState<typeof userData>([]);
   const [tableLoading, setTableLoading] = useState(false);
 
   // Sample data for the table
@@ -371,7 +370,8 @@ export default function ComponentDemo() {
       key: 'status',
       title: 'Status',
       dataIndex: 'status' as keyof typeof userData[0],
-      render: (status: string) => (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (status: any) => (
         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
           status === 'Active' 
             ? 'bg-green-100 text-green-800' 
@@ -391,7 +391,7 @@ export default function ComponentDemo() {
   return (
     <div className="max-w-6xl mx-auto p-8 space-y-12">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">React Components Demo</h1>
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">React Components Demo</h1>
         <p className="text-gray-600">Interactive demonstration of InputField and DataTable components</p>
       </div>
 
@@ -514,8 +514,8 @@ export default function ComponentDemo() {
             data={userData}
             columns={columns}
             loading={tableLoading}
-            selectable={true}
-            onRowSelect={setSelectedUsers}
+            selectable
+            onRowSelect={(rows) => setSelectedUsers(rows)}
             keyExtractor={(record) => record.id}
           />
 
